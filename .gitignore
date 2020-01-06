@@ -1,0 +1,13 @@
+*~
+cabal.config
+keys
+*.cabal
+out
+db.*
+.*
+*.iml
+*.lock
+*.txt
+*.sh
+*GitIgnore*
+app/Main.hs
