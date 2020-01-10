@@ -1,17 +1,14 @@
 {-# LANGUAGE FlexibleInstances #-}
 module MySemigroup where
+import MyOrd
 
-import Prelude hiding (Semigroup(..), Monoid(..))
+import Prelude hiding (Semigroup(..), Monoid(..), Ord(..))
 class Semigroup a where
   (<>) :: a -> a -> a
-
-instance Semigroup [a] where
-  (<>) = (++)
-
 class Semigroup a => Monoid a where
   mempty :: a
 
-newtype Sum a = Sum a deriving Show
+newtype Sum a = Sum { getSum :: a } deriving Show
 instance Num a => Semigroup (Sum a) where
   Sum x <> Sum y = Sum $ x + y
 instance Num a => Monoid (Sum a) where
@@ -23,10 +20,16 @@ instance Num a => Semigroup (Product a) where
 instance Num a => Monoid (Product a) where
   mempty = Product 1
 
-newtype All = All Bool
+newtype All = All { getAll :: Bool }
 instance Semigroup All where
   All x <> All y = All $ x && y
-newtype Any = Any Bool
+instance Monoid All where
+  mempty = All True
+newtype Any = Any { getAny :: Bool }
+instance Semigroup Any where
+  (Any x) <> (Any y) = Any $ x || y
+instance Monoid Any where
+  mempty = Any False
 -- We can define a Semigroup for Maybes in two (exclusive) ways
 -- The trivial, or left-biased
 instance Semigroup (Maybe a) where
@@ -52,6 +55,11 @@ instance Semigroup (Last a) where
   a <> Last Nothing = a
   _ <> a            = a
 
+instance Semigroup [a] where
+  (<>) = (++)
+instance Monoid [a] where
+  mempty = []
+
 sconcat :: Semigroup a => [a] -> Maybe a
 sconcat = foldr ((<>) . Just) Nothing
 mconcat :: Monoid a => [a] -> a
@@ -65,3 +73,10 @@ instance Semigroup (Endo a) where
   (Endo f) <> (Endo g) = Endo $ g . f
 instance Monoid (Endo a) where
   mempty = Endo id
+
+newtype Min a = Min { getMin :: a }
+instance Ord a => Semigroup (Min a) where
+  (Min x) <> (Min y) = Min $ min x y
+newtype Max a = Max { getMax :: a }
+instance Ord a => Semigroup (Max a) where
+  (Max x) <> (Max y) = Max $ max x y
