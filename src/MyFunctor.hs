@@ -35,6 +35,8 @@ instance Functor (SimpleReader r) where
 
 instance Functor ((->) r) where
   fmap = (.)
+instance Functor ((,) w) where
+  fmap f (w, a) = (w, f a)
   
 fproduct :: Functor f => (a -> b) -> f a -> f (a, b)
 fproduct f = fmap (\a -> (a, f a))

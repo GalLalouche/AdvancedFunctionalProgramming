@@ -3,8 +3,9 @@
 {-# LANGUAGE InstanceSigs #-}
 module MyApplicative where
 
-import Prelude hiding (Functor(..), Applicative(..), (<$>))
+import Prelude hiding (Functor(..), Applicative(..), (<$>), Monoid(..), Monoid(..), Semigroup(..))
 import MyFunctor
+import MySemigroup
 
 class Applicative f where
   pure :: a -> f a
@@ -22,6 +23,14 @@ instance Applicative Maybe where
   liftA2 f (Just x) (Just y) = Just $ f x y
   liftA2 _ _ _ = Nothing
 
+instance Applicative ((->) r ) where
+  pure = const
+  liftA2 f r1 r2 r = f (r1 r) (r2 r)
+
+instance Monoid w => Applicative ((,) w) where
+  pure x = (mempty, x)
+  liftA2 f (wa, a) (w2, b) = (wa <> w2, f a b)
+  
 sumMaybes :: Maybe Int -> Maybe Int -> Maybe Int
 sumMaybes = liftA2 (+)
 
