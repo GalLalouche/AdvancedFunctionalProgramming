@@ -48,6 +48,8 @@ instance Monad RandomGen where
 
 class Randomable a where
   gen :: RandomGen a
+  shrink :: a -> [a]
+  shrink _ = []
 instance Randomable Int where
   gen = RandomGen nextInt
 genInt :: RandomGen Int
