@@ -13,6 +13,10 @@ class Functor f where
 instance Functor Maybe where
   fmap _ Nothing = Nothing
   fmap f (Just x) = Just $ f x
+  
+instance Functor (Either a) where
+  fmap f (Right a) = Right $ f a 
+  fmap _ (Left a) = Left a
 
 instance Functor [] where
   fmap = map
@@ -37,7 +41,7 @@ instance Functor ((->) r) where
   fmap = (.)
 instance Functor ((,) w) where
   fmap f (w, a) = (w, f a)
-  
+
 fproduct :: Functor f => (a -> b) -> f a -> f (a, b)
 fproduct f = fmap (\a -> (a, f a))
 square :: Functor f => f a -> f (a, a)
@@ -51,7 +55,19 @@ void = (<$) ()
 
 class Contravariant f where
   contramap :: (b -> a) -> f a -> f b
-  
+
 newtype InvFun a b = InvFun (b -> a)
 instance Contravariant (InvFun a) where
   contramap f (InvFun g) = InvFun $ g . f
+
+foo :: Maybe Bool -> Maybe (Bool -> Bool)
+foo = fmap (&&)
+
+data EitherFunction i j a = FromI (i -> a) | FromJ (j -> a)
+instance Functor (EitherFunction i j) where
+  fmap f (FromI g) = FromI (f . g)
+  fmap f (FromJ g) = FromJ (f . g)
+  
+instance Functor IO where
+  fmap = undefined
+

@@ -6,6 +6,8 @@ author:              "Gal Lalouche"
 
 dependencies:
 - base >= 4.7 && < 5
+- containers
+- QuickCheck
 - time
 
 library:
@@ -21,3 +23,25 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - afp
+
+tests:
+  afp-test:
+    main:                Driver.hs
+    source-dirs:         test
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+      - -Wall
+      - -Wno-missing-signatures
+      - -Wno-name-shadowing
+      - -Wno-orphans
+      - -Wno-type-defaults
+    dependencies:
+      - afp
+      - HUnit
+      - QuickCheck
+      - tasty
+      - tasty-hunit
+      - tasty-hunit-adapter
+      - tasty-discover >= 4.2.1

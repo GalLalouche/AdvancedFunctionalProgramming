@@ -2,8 +2,9 @@
 module MyRng where
 
 import Data.Time.Clock.POSIX (getPOSIXTime)
+import Data.Char (ord, chr, toUpper)
 import Data.Composition
-import Data.Bits (shift)
+import Data.Bits (shiftL, shiftR)
 import Control.Applicative
 import MyTree
 
@@ -15,7 +16,7 @@ instance Show Random where
   show (Random _ seed) = "Random (" ++ show seed ++ ")"
 
 linearCongruentialGenerator :: RngConfig -> Rng
-linearCongruentialGenerator (RngConfig m i) = Rng $ \seed -> (seed * m + i) `mod` (2 `shift` 31)
+linearCongruentialGenerator (RngConfig m i) = Rng $ \seed -> (seed * m + i) `mod` (2 `shiftL` 32)
 
 nextInt :: Random -> (Int, Random)
 nextInt (Random r@(Rng next) s) = let n = next s in (n, Random r n)
@@ -51,7 +52,14 @@ class Randomable a where
   shrink :: a -> [a]
   shrink _ = []
 instance Randomable Int where
-  gen = RandomGen nextInt
+  gen = do
+    x <- RandomGen nextInt
+    y <- RandomGen nextInt
+    return $ (x `shiftL` 15) + (y `shiftR` 16)
+  shrink = reverse . aux where
+    aux 0 = []
+    aux n = let d = n `div` 2 in d : aux d
+
 genInt :: RandomGen Int
 genInt = gen
 genMax :: Int -> RandomGen Int
@@ -66,7 +74,7 @@ instance Randomable a => Randomable (Maybe a) where
     isNothing <- gen
     if isNothing then return Nothing else Just <$> gen
 genSimple :: RandomGen Int
-genSimple = gen >>= return >>= return
+genSimple = gen
 --  x <- gen
 --  unused <- gen :: RandomGen Int
 --  return x
@@ -76,10 +84,51 @@ genList n = do
   x <- gen
   rest <- genList (n - 1)
   return $ x : rest
+
+genIntMax :: Int -> RandomGen Int
+genIntMax n = fmap (`mod` n) gen
+
+genAlphaChar :: RandomGen Char
+genAlphaChar = do
+  i <- genIntMax 26
+  let char = chr $ asciiForA + i
+  isUpperCase <- gen
+  return $ if isUpperCase then toUpper char else char
+  where asciiForA = ord 'a'
+
+genListOfSize :: RandomGen a -> Int -> RandomGen [a]
+genListOfSize _  0 = return []
+genListOfSize rg n = liftA2 (:) rg (genListOfSize rg (n - 1))
+
+genListOfMaxSize :: RandomGen a -> Int -> RandomGen [a]
+genListOfMaxSize _ 0 = return []
+genListOfMaxSize rg n = genIntMax n >>= genListOfSize rg
+
+genAlphaString :: Int -> RandomGen String
+genAlphaString = genListOfMaxSize genAlphaChar
+
+data Person = Person { name :: String, age :: Int}
+instance Randomable Person where
+  gen = do
+    firstName <- genAlphaString 10
+    lastName <- genAlphaString 10
+    age <- genIntMax 120
+    return $ Person (firstName ++ " " ++ lastName) age
+
 instance Randomable a => Randomable [a] where
   gen = do
-    isEmpty <- gen
+    isEmpty <- (> 8) <$> genIntMax 11
     if isEmpty then return [] else liftA2 (:) gen gen
+  shrink xs = safeInit (inits xs) ++ shrinkOne xs where
+    safeInit xs = if null xs then [] else init xs
+    -- Exists in Data.List
+    inits :: [a] -> [[a]]
+    inits [] = [[]]
+    inits (x : xs) = [] : fmap (x :) (inits xs)
+    shrinkOne [] = []
+    shrinkOne (x : xs) =
+        [x' : xs | x' <- shrink x] ++
+        [x : xs' | xs' <- shrinkOne xs]
 
 instance Randomable a => Randomable (Tree a) where
   gen = do

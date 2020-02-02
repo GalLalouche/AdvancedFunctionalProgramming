@@ -1,13 +1,15 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RankNTypes #-}
 module MyApplicative where
 
-import Prelude hiding (Functor(..), Applicative(..), (<$>), Monoid(..), Monoid(..), Semigroup(..))
+import Prelude hiding (Functor(..), Applicative(..), (<$>), Monoid(..), Monoid(..), Semigroup(..), void)
 import MyFunctor
 import MySemigroup
 
-class Applicative f where
+class Functor f => Applicative f where
   pure :: a -> f a
   liftA2 :: (a -> b -> c) -> f a -> f b -> f c
   liftA2 f x y = f <$> x <*> y
@@ -15,9 +17,16 @@ class Applicative f where
   (<*>) = liftA2 id
   {-# MINIMAL (pure | liftA2), pure #-}
 
-instance Applicative f => Functor f where
-  fmap :: (a -> b) -> f a -> f b
-  fmap = liftA2 id . pure
+(*>) :: Applicative f => f a -> f b -> f b
+(*>) = liftA2 (\a b -> b)
+(<*) :: Applicative f => f a -> f b -> f a
+(<*) = liftA2 const
+
+(*>?) :: Applicative f => f a -> f b -> f b
+(*>?) fa fb = fb
+(<*?) :: Applicative f => f a -> f b -> f a
+(<*?) fa fb = fa
+
 instance Applicative Maybe where
   pure = Just
   liftA2 f (Just x) (Just y) = Just $ f x y
@@ -45,7 +54,9 @@ instance Applicative (Either a) where
   liftA2 _ _ (Left l) = Left l
 
 data Person = Person String Int [Person]
-instance Applicative IO
+instance Applicative IO where
+  liftA2 = undefined
+  pure = undefined
 getName :: IO String
 getName = undefined
 getAge :: IO Int
@@ -75,3 +86,20 @@ getPersonWithLiftA2 = liftA2 id (liftA2 Person getName getAge) getChildren
 (.:.) = undefined
 liftA3 :: Applicative f => (a -> b -> c -> d) -> f a -> f b -> f c -> f d
 liftA3 = liftA2 id .:. liftA2
+
+when :: Applicative f => Bool -> f a -> f ()
+when b f = if b then void f else pure ()
+
+traverse_ :: Applicative f => (a -> f b) -> [a] -> f ()
+traverse_ f = foldr ((*>) . f) (pure ())
+
+instance Applicative [] where    
+  pure x = [x]
+  liftA2 f xs ys = [f x y | x <- xs, y <- ys]
+newtype ZipList a = ZipList [a]
+instance Functor ZipList where
+  fmap f (ZipList xs) = ZipList $ fmap f xs
+instance Applicative ZipList where
+  pure x = ZipList [x]
+  liftA2 f (ZipList xs) (ZipList ys) = ZipList $ zipWith f xs ys
+
