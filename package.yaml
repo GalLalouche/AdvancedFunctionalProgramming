@@ -7,7 +7,9 @@ author:              "Gal Lalouche"
 dependencies:
 - base >= 4.7 && < 5
 - containers
+- mtl
 - QuickCheck
+- text
 - time
 
 library:

@@ -14,7 +14,7 @@ import           MyRng
 
 
 random = Random gccConfig 0
-property1 :: forall a. (Randomable a, Show a) => (a -> Bool) -> Maybe a
+property1 :: forall a. Randomable a => (a -> Bool) -> Maybe a
 property1 p = aux 100 random where
   aux :: Int -> Random -> Maybe a
   aux 0 _ = Nothing
@@ -25,12 +25,10 @@ property1 p = aux 100 random where
     Nothing -> v
     Just v2 -> recShrink v2
 
-
 instance (Randomable a, Randomable b) => Randomable (a, b) where
   gen = liftA2 (,) gen gen
   -- Interesting show case for class: you can forget about mapping original a and b when shrinking, which can cause bugs
---  shrink (a, b) = liftA2 (,) (shrink a) (shrink b)
-  shrink (a, b) = tail $ liftA2 (,) (a : shrink a) (b : shrink b)
+  shrink (a, b) = [(a', b) | a' <- shrink a] ++ [(a, b') | b' <- shrink b]
 
 property2 :: forall a b. (Show a, Randomable a, Show b, Randomable b) => (a -> b -> Bool) -> Maybe (a, b)
 property2 = property1 . uncurry
@@ -84,21 +82,25 @@ instance Randomable TinyInt where
   shrink 0 = []
   shrink n = [n `div` 2, n - 1]
 
-x `divides` y = x /= 0 && x `rem` y == 0
+x `divides` y = y == 0 || x `rem` y == 0
 noRem = divides
 hasRem x y = not $ x `divides` y
-
 goodGcd x 0 = x
 goodGcd x y = goodGcd y (x `mod` y)
 badGcd x y | noRem x y = y | noRem y x = x | otherwise = 1
 
 isGoodGcd gcd x y = let
     res = gcd x y
-  in noRem x res && noRem y res && all (\g -> hasRem x g || hasRem y g || noRem res g) [1..min x y - 1]
+  in noRem x res &&
+     noRem y res &&
+     all (\g -> hasRem x g || hasRem y g) [res + 1..min x y - 1]
 
 property_checkGoodGcd = property2 $ isGoodGcd (goodGcd :: SmallInt -> SmallInt -> SmallInt)
 -- This shrink to (4, 10), which isn't minimal. That's because 10 can't be shrunk to 6 given the basic shrinkings.
 property_checkBadGcd = property2 $ isGoodGcd (badGcd :: SmallInt -> SmallInt -> SmallInt)
+
+isPrime :: Int -> Bool
+isPrime n = all (not . (`divides` n)) [2 .. n - 1]
 
 reverseGood []       = []
 reverseGood (x : xs) = reverseGood xs ++ [x]
