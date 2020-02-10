@@ -1,119 +1,144 @@
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE LiberalTypeSynonyms  #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TupleSections #-}
 
 module MyParsec where
 
-import           Control.Monad.State
-import Data.Map.Strict (Map, fromList)
 import           Control.Applicative (liftA2)
+import           Control.Monad.State
 import qualified Data.Char           as Char
 import           Data.Functor        (($>))
+import           Data.List.NonEmpty  (NonEmpty((:|)))
+import qualified Data.List.NonEmpty  as NE
+import           Data.Map.Strict     (Map, fromList)
 import           Data.Text           (Text)
 import qualified Data.Text           as T
 
+type ParseError = (String, SourcePos)
 type ParseResult = Either ParseError
-data ParseError = ParseError {
-    message :: String
-  , pos     :: SourcePos
-} deriving (Show, Eq, Ord)
 data SourcePos = SourcePos {
     lineNumber    :: Int
   , columnNumber  :: Int
   , remainingText :: String
 } deriving (Show, Eq, Ord)
-isAtEnd :: SourcePos -> Bool
-isAtEnd (SourcePos _ _ remainingText) = null remainingText
-type Parser = StateT SourcePos ParseResult
-raiseError :: String -> Parser a
-raiseError e = do
-  pos <- get
-  lift $ Left $ ParseError e pos
-
 mkSourcePos :: String -> SourcePos
 mkSourcePos = SourcePos 0 0
 
-parseAnyChar :: Parser Char
-parseAnyChar = do
-  end <- gets isAtEnd
-  if end then raiseError "Parser reached end of source" else do
-    h <- gets $ head . remainingText
-    (modify increment) $> h where
-  increment (SourcePos ln cn (h : t)) = if h == '\n' then SourcePos (ln + 1) 0 t else SourcePos ln (cn + 1) t
+type Parser = StateT SourcePos ParseResult
 
-parseDigit :: Parser Int
-parseDigit = do
-  c <- parseAnyChar
+raiseError :: String -> Parser a
+raiseError s = do { pos <- get; lift $ Left $ (s, pos) }
+
+anyChar :: Parser Char
+anyChar = do
+  isAtEnd <- gets $ null . remainingText
+  if isAtEnd
+     then raiseError "Parser reached end of source"
+     else gets (head . remainingText) <* modify increment
+  where
+    increment (SourcePos ln cn (h : t)) =
+      if h == '\n' then SourcePos (ln + 1) 0 t
+                   else SourcePos ln (cn + 1) t
+
+digit :: Parser Int
+digit = do
+  c <- anyChar
   if Char.isDigit c then return $ Char.digitToInt c else raiseError $ "Expected Digit but got <" ++ [c] ++ ">"
 
-parseNothing :: Parser ()
-parseNothing = return ()
+parseTwoDigits = do
+  x <- digit
+  y <- digit
+  return $ [x, y]
 
-parseEither :: Parser a -> Parser b -> Parser (Either a b)
-parseEither p1 p2 = StateT $ \s -> let pos = runStateT p1 s in case pos of
-  Left _       -> (\(a, s) -> (Right a, s)) <$> runStateT p2 s
-  Right (a, s) -> return $ (Left a, s)
--- Parses until first failure
-parseMany :: Parser a -> Parser [a]
-parseMany p1 = (do {x <- p1; (x :) <$> parseMany p1}) <|> return []
+digitsToInteger :: Foldable f => f Int -> Integer
+digitsToInteger = foldl (\a b -> (a * 10) + (toInteger b)) 0
+parseNumberSlow :: Parser Integer
+parseNumberSlow =
+    digitsToInteger <$> liftA2 (:) digit parseDigits where
+  parseDigits :: Parser [Int]
+  parseDigits = (liftA2 (:) digit parseDigits) <|> pure []
 
--- TODO NonEmpty a
-parseMany1 :: Parser a -> Parser [a]
-parseMany1 p = liftA2 (:) p (parseMany p)
----- Returns the first parser if successful, otherwise tries the second one
+
+-- Runs parser p2 if p1 failed *without consuming any input*
 (<|>) :: Parser a -> Parser a -> Parser a
-p1 <|> p2 = StateT $ \s -> let pos = runStateT p1 s in case pos of
-      Left _ -> runStateT p2 s
-      Right x -> Right x
+p1 <|> p2 = StateT $ \s1 -> case runStateT p1 s1 of
+  l@(Left (_, s2)) -> if areSame s1 s2 then runStateT p2 s1 else l
+  x                -> x
+  where
+    areSame (SourcePos ln1 cn1 _) (SourcePos ln2 cn2 _) =
+      ln1 == ln2 && cn1 == cn2
+--
+--parseNothing :: Parser ()
+--parseNothing = return ()
 
-parseChar :: Char -> Parser Char
-parseChar x = do
-  y <- parseAnyChar
+
+
+--parseEither :: Parser a -> Parser b -> Parser (Either a b)
+--parseEither p1 p2 = StateT $ \s -> let pos = runStateT p1 s in case pos of
+--  Left _       -> (\(a, s) -> (Right a, s)) <$> runStateT p2 s
+--  Right (a, s) -> return $ (Left a, s)
+-- Parses until first failure
+try :: Parser a -> Parser a
+try p = StateT $ \s1 -> case runStateT p s1 of
+  Left (x, _) -> Left (x, s1) -- Return original state
+  x           -> x
+
+--StateT $ \s -> let pos = runStateT p s in case pos of
+--      Left _  -> runStateT p2 s
+--      Right x -> Right x
+many :: Parser a -> Parser [a]
+many p = try (liftA2 (:) p (many p)) <|> pure []
+
+many1 :: Parser a -> Parser (NonEmpty a)
+many1 p = liftA2 (:|) p (many p)
+---- Returns the first parser if successful, otherwise tries the second one
+--(<|>) :: Parser a -> Parser a -> Parser a
+--p1 <|> p2 = StateT $ \s -> let pos = runStateT p1 s in case pos of
+--      Left _  -> runStateT p2 s
+--      Right x -> Right x
+
+char :: Char -> Parser Char
+char x = do
+  y <- anyChar
   if x == y then return y else raiseError $ "Expected " ++ show x ++ ", but got " ++ show y
-parseKeyword :: String -> Parser String
-parseKeyword [] = return []
-parseKeyword (h : s) = liftA2 (:) (parseChar h) (parseKeyword s)
+keyword :: String -> Parser String
+keyword []      = return []
+keyword (h : s) = liftA2 (:) (char h) (keyword s)
 
 parseKeywordGood :: String -> Parser String
 parseKeywordGood kw = aux [] kw where
   aux current [] = return kw
   aux current (h : s) = do
-    x <- parseAnyChar
+    x <- anyChar
     if x /= h then raiseError $ "Expected '" ++ kw ++ "' but got '" ++ (reverse $ x : current) ++ "'"
               else aux (h : current) s
 
 parseNot :: Char -> Parser Char
 parseNot c = do
-  x <- parseAnyChar
+  x <- anyChar
   if x == c then raiseError $ "Did not expect " ++ show c else return x
 parseUntilChar :: Char -> Parser [Char]
-parseUntilChar = parseMany . parseNot
+parseUntilChar = many . parseNot
 parseString :: Parser String
-parseString = parseChar '"' *> parseUntilChar '"' <* parseChar '"'
+parseString = char '"' *> parseUntilChar '"' <* char '"'
 
 parseAny :: [Parser a] -> Parser a
-parseAny [] = error "parseAny received an empty list! Boo on you!"
-parseAny [p] = p
+parseAny []       = error "parseAny received an empty list! Boo on you!"
+parseAny [p]      = p
 parseAny (h : hs) = h <|> parseAny hs
 
 eatWhiteSpace :: Parser ()
-eatWhiteSpace = void $ parseMany $ parseAny $ map parseChar " \r\n\t\v"
+eatWhiteSpace = void $ many $ parseAny $ map char " \r\n\t\v"
 
-parseNumber :: Parser Int
-parseNumber = digitsToInt 0 <$> parseMany1 parseDigit where
-  digitsToInt current [] = current
-  digitsToInt current (h : s) = digitsToInt (current * 10 + h) s
+number :: Parser Integer
+number = digitsToInteger <$> many1 digit
 
 sepByChar :: Parser a -> Char -> Parser [a]
-sepByChar p sep = (liftA2 (:) p (parseMany (parseChar sep *> p))) <|> return []
+sepByChar p sep = (liftA2 (:) p (many (char sep *> p))) <|> return []
 
-data JsValue = JsObject (Map String JsValue) | JsInt Int | JsString String | JsArray [JsValue] deriving (Show)
+data JsValue = JsObject (Map String JsValue) | JsInt Integer | JsString String | JsArray [JsValue] deriving (Show)
 parseJsString = JsString <$> parseString
-parseJsInt = JsInt <$> parseNumber
-parseJsArray = JsArray <$> (parseChar '[' *> sepByChar (eatWhiteSpace *> parseJsValue <* eatWhiteSpace) ',' <* parseChar ']')
-parseJsObject = JsObject . fromList <$> (parseChar '{' *> eatWhiteSpace *> sepByChar keyValuePair ',' <* eatWhiteSpace <* parseChar '}') where
+parseJsInt = JsInt <$> number
+parseJsArray = JsArray <$> (char '[' *> sepByChar (eatWhiteSpace *> parseJsValue <* eatWhiteSpace) ',' <* char ']')
+parseJsObject = JsObject . fromList <$> (char '{' *> eatWhiteSpace *> sepByChar keyValuePair ',' <* eatWhiteSpace <* char '}') where
   keyValuePair :: Parser (String, JsValue)
-  keyValuePair = liftA2 (,) (eatWhiteSpace *> parseString) (eatWhiteSpace *> parseChar ':' *> eatWhiteSpace *> parseJsValue <* eatWhiteSpace)
+  keyValuePair = liftA2 (,) (eatWhiteSpace *> parseString) (eatWhiteSpace *> char ':' *> eatWhiteSpace *> parseJsValue <* eatWhiteSpace)
 parseJsValue = parseAny [parseJsString, parseJsInt, parseJsObject, parseJsArray]
