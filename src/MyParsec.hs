@@ -98,19 +98,37 @@ many1 p = liftA2 (:|) p (many p)
 char :: Char -> Parser Char
 char x = do
   y <- anyChar
-  if x == y then return y else raiseError $ "Expected " ++ show x ++ ", but got " ++ show y
+  if x == y then return y
+            else raiseError $
+                "Expected " ++ show x ++ ", but got " ++ show y
+
+--string :: String -> Parser String
+--string [] = return []
+--string (x : xs) = liftA2 (:) (char x) (string xs)
+
+between :: Parser open -> Parser close -> Parser a -> Parser a
+between open close a = open *> a <* close
+
 keyword :: String -> Parser String
 keyword []      = return []
 keyword (h : s) = liftA2 (:) (char h) (keyword s)
 
-parseKeywordGood :: String -> Parser String
-parseKeywordGood kw = aux [] kw where
+string :: String -> Parser String
+string kw = aux [] kw where
   aux current [] = return kw
   aux current (h : s) = do
     x <- anyChar
-    if x /= h then raiseError $ "Expected '" ++ kw ++ "' but got '" ++ (reverse $ x : current) ++ "'"
-              else aux (h : current) s
+    if x /= h
+    then let
+        actual = (reverse $ x : current)
+      in raiseError $
+        "Expected '" ++ kw ++ "' but got '" ++ actual ++ "'"
+    else aux (h : current) s
 
+oneOf :: [Char] -> Parser Char
+oneOf cs = foldr (<|>) (raiseError $ "No match found in" ++ show cs) (fmap char cs)
+skipMany :: Parser a -> Parser ()
+skipMany = void . many
 parseNot :: Char -> Parser Char
 parseNot c = do
   x <- anyChar
@@ -125,8 +143,11 @@ parseAny []       = error "parseAny received an empty list! Boo on you!"
 parseAny [p]      = p
 parseAny (h : hs) = h <|> parseAny hs
 
-eatWhiteSpace :: Parser ()
-eatWhiteSpace = void $ many $ parseAny $ map char " \r\n\t\v"
+spaces :: Parser ()
+spaces = skipMany $ oneOf " \t\r\n"
+
+symbol :: Parser a -> Parser a
+symbol = (<* spaces)
 
 number :: Parser Integer
 number = digitsToInteger <$> many1 digit
@@ -137,8 +158,8 @@ sepByChar p sep = (liftA2 (:) p (many (char sep *> p))) <|> return []
 data JsValue = JsObject (Map String JsValue) | JsInt Integer | JsString String | JsArray [JsValue] deriving (Show)
 parseJsString = JsString <$> parseString
 parseJsInt = JsInt <$> number
-parseJsArray = JsArray <$> (char '[' *> sepByChar (eatWhiteSpace *> parseJsValue <* eatWhiteSpace) ',' <* char ']')
-parseJsObject = JsObject . fromList <$> (char '{' *> eatWhiteSpace *> sepByChar keyValuePair ',' <* eatWhiteSpace <* char '}') where
+parseJsArray = JsArray <$> (char '[' *> sepByChar (spaces *> parseJsValue <* spaces) ',' <* char ']')
+parseJsObject = JsObject . fromList <$> (char '{' *> spaces *> sepByChar keyValuePair ',' <* spaces <* char '}') where
   keyValuePair :: Parser (String, JsValue)
   keyValuePair = liftA2 (,) (eatWhiteSpace *> parseString) (eatWhiteSpace *> char ':' *> eatWhiteSpace *> parseJsValue <* eatWhiteSpace)
 parseJsValue = parseAny [parseJsString, parseJsInt, parseJsObject, parseJsArray]
