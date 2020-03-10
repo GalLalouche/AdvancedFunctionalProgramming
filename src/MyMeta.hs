@@ -1,0 +1,30 @@
+-- {-# LANGUAGE TemplateHaskell #-}
+--
+module MyMeta where
+--
+--import Language.Haskell.TH (Q, Exp(VarE, AppE, LamE, TupE), newName, Pat(VarP), Name, pprint, runQ)
+--import Control.Monad (replicateM)
+--
+--
+----curryN :: Int -> Q Exp
+--curryN n = do
+--  -- newName is a way to generate collision-free names
+--  f <- newName "f" :: Q Name
+--  -- Since it's collision free, we can simply request n "x"s.
+--  -- This is equivalent to [x_1, x_2, ..., x_n].
+--  -- x starts from 1 since f is actually f_0
+--  xs <- replicateM n (newName "x")
+--  let args = map VarP (f : xs) :: [Pat]
+--      -- Creates an expression (x1, x2, ..., xn)
+--      ntup = TupE $ VarE <$> xs :: Exp
+--      -- f (x0, x1, ..., xn - 1)
+--      appliedF = AppE (VarE f) ntup
+--  -- f x0 x1 ... xn - 1 = \f (x0, x1, ..., xn - 1)
+--  return $ LamE args (appliedF)
+--
+--debug :: IO String
+--debug = pprint <$> (runQ $ [| $(curryN 4) |])
+----  xs <- replicateM n (newName "x") :: Q [Name]
+----  let args = map VarP (f : xs) :: [Pat]
+----  let ntup = TupE (map VarE xs) :: Exp
+----  return $ LamE args (AppE (VarE f) ntup) :: Q Exp

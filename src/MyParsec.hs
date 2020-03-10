@@ -6,9 +6,10 @@ import           Control.Applicative (liftA2)
 import           Control.Monad.State
 import qualified Data.Char           as Char
 import           Data.Functor        (($>))
-import           Data.List.NonEmpty  (NonEmpty((:|)))
+import           Data.List.NonEmpty  (NonEmpty ((:|)))
 import qualified Data.List.NonEmpty  as NE
-import           Data.Map.Strict     (Map, fromList)
+import           Data.Map.Strict     (Map)
+import qualified Data.Map.Strict     as Map
 import           Data.Text           (Text)
 import qualified Data.Text           as T
 
@@ -39,14 +40,14 @@ anyChar = do
                    else SourcePos ln (cn + 1) t
 
 digit :: Parser Int
-digit = do
+digit = try $ do
   c <- anyChar
   if Char.isDigit c then return $ Char.digitToInt c else raiseError $ "Expected Digit but got <" ++ [c] ++ ">"
 
 parseTwoDigits = do
   x <- digit
   y <- digit
-  return $ [x, y]
+  return [x, y]
 
 digitsToInteger :: Foldable f => f Int -> Integer
 digitsToInteger = foldl (\a b -> (a * 10) + (toInteger b)) 0
@@ -96,7 +97,7 @@ many1 p = liftA2 (:|) p (many p)
 --      Right x -> Right x
 
 char :: Char -> Parser Char
-char x = do
+char x = try $ do
   y <- anyChar
   if x == y then return y
             else raiseError $
@@ -114,52 +115,61 @@ keyword []      = return []
 keyword (h : s) = liftA2 (:) (char h) (keyword s)
 
 string :: String -> Parser String
-string kw = aux [] kw where
-  aux current [] = return kw
-  aux current (h : s) = do
-    x <- anyChar
-    if x /= h
-    then let
-        actual = (reverse $ x : current)
-      in raiseError $
-        "Expected '" ++ kw ++ "' but got '" ++ actual ++ "'"
-    else aux (h : current) s
+string []       = pure []
+string (x : xs) = liftA2 (:) (char x) (string xs)
 
 oneOf :: [Char] -> Parser Char
 oneOf cs = foldr (<|>) (raiseError $ "No match found in" ++ show cs) (fmap char cs)
 skipMany :: Parser a -> Parser ()
 skipMany = void . many
-parseNot :: Char -> Parser Char
-parseNot c = do
-  x <- anyChar
-  if x == c then raiseError $ "Did not expect " ++ show c else return x
-parseUntilChar :: Char -> Parser [Char]
-parseUntilChar = many . parseNot
-parseString :: Parser String
-parseString = char '"' *> parseUntilChar '"' <* char '"'
 
-parseAny :: [Parser a] -> Parser a
-parseAny []       = error "parseAny received an empty list! Boo on you!"
-parseAny [p]      = p
-parseAny (h : hs) = h <|> parseAny hs
+noneOf :: [Char] -> Parser Char
+noneOf cs = try $ do -- Don't forget not to consume on error!
+  c <- anyChar
+  let msg = show c ++ " was in " ++ show cs
+  if c `elem` cs then raiseError msg else return c
+
+anyString :: Parser String
+anyString = let
+    quote = '"'
+    quoteParser = char quote
+    p = noneOf ['\\', quote] <|> (string "\\\"" $> quote)
+  in between quoteParser quoteParser (many p)
+
+choice :: [Parser a] -> Parser a
+choice = foldr (<|>) (raiseError "No match found")
 
 spaces :: Parser ()
 spaces = skipMany $ oneOf " \t\r\n"
 
-symbol :: Parser a -> Parser a
-symbol = (<* spaces)
+lexeme :: Parser a -> Parser a
+lexeme = (<* spaces)
+symbol :: String -> Parser String
+symbol = lexeme . string
 
 number :: Parser Integer
 number = digitsToInteger <$> many1 digit
 
-sepByChar :: Parser a -> Char -> Parser [a]
-sepByChar p sep = (liftA2 (:) p (many (char sep *> p))) <|> return []
+sepBy :: Parser a -> Parser sep -> Parser [a]
+sepBy p sep = (liftA2 (:) p (many (sep *> p))) <|> pure []
+sepByComma :: Parser a -> Parser [a]
+sepByComma = (`sepBy` symbol ",")
 
-data JsValue = JsObject (Map String JsValue) | JsInt Integer | JsString String | JsArray [JsValue] deriving (Show)
-parseJsString = JsString <$> parseString
-parseJsInt = JsInt <$> number
-parseJsArray = JsArray <$> (char '[' *> sepByChar (spaces *> parseJsValue <* spaces) ',' <* char ']')
-parseJsObject = JsObject . fromList <$> (char '{' *> spaces *> sepByChar keyValuePair ',' <* spaces <* char '}') where
-  keyValuePair :: Parser (String, JsValue)
-  keyValuePair = liftA2 (,) (eatWhiteSpace *> parseString) (eatWhiteSpace *> char ':' *> eatWhiteSpace *> parseJsValue <* eatWhiteSpace)
-parseJsValue = parseAny [parseJsString, parseJsInt, parseJsObject, parseJsArray]
+data JsValue = JsInt Integer |
+               JsString String |
+               JsObject (Map String JsValue) |
+               JsArray [JsValue]
+     deriving (Show)
+parseJsString = JsString <$> lexeme anyString
+parseJsInt = JsInt <$> lexeme number
+parseJsArray = let
+    parser = sepByComma parseJsValue
+  in JsArray <$> between (symbol "[") (symbol "]") parser
+parseJsObject = let
+    key = lexeme anyString
+    value = lexeme $ symbol ":" *> parseJsValue
+    keyValuePairs = sepByComma $ liftA2 (,) key value
+    parser = between (symbol "{") (symbol "}") keyValuePairs
+  in JsObject . Map.fromList <$> parser
+parseJsValue = choice [
+    parseJsInt, parseJsString, parseJsObject, parseJsArray]

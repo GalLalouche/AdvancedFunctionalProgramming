@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
 module DS.BankerDeque where
 
 import DS.Stack
@@ -15,9 +16,8 @@ splitReversed :: Int -> Stack a -> (Stack a, Stack a)
 splitReversed = go empty where
   -- agg was aggregated reversed, to we re-reverse it.
   go agg 0 rest = (reverse agg, reverse rest)
-  go agg n rest = case pop rest of
-    Nothing -> (reverse agg, empty)
-    Just (x, xs) -> go (push x agg) (n - 1) xs
+  go agg n (pop -> Nothing) = (reverse agg, empty)
+  go agg n (pop -> Just (x, xs)) = go (push x agg) (n - 1) xs
 c = 3
 
 rebalance :: forall a . Deque a -> Deque a
@@ -32,13 +32,13 @@ rebalance d@(Deque l r)
     totalSize = ls + rs
     halfSize = totalSize `div` 2
     leftToRight :: Deque a
-    leftToRight = Deque l' r' where
-      (l', toR) = splitReversed halfSize l
-      r' = r ++ toR
+    leftToRight = Deque newL newR where
+      (newL, toR) = splitReversed halfSize l
+      newR = r ++ toR
     rightToLeft :: Deque a
-    rightToLeft = Deque l' r' where
-      (r', toL) = splitReversed halfSize r
-      l' = l ++ toL
+    rightToLeft = Deque newL newR where
+      (newR, toL) = splitReversed halfSize r
+      newL = l ++ toL
 
 pushr :: a -> Deque a -> Deque a
 pushr x (Deque l r) = rebalance $ Deque l (push x r)
@@ -50,14 +50,14 @@ popl :: Deque a -> Maybe (a, Deque a)
 popl (Deque l r)
   | null l && null r = Nothing
   | otherwise = case pop l of
-    Nothing -> popl $ Deque (reverse r) empty
-    Just (x, xs) -> Just (x, rebalance $ Deque xs r)
+      Nothing -> popl $ Deque (reverse r) empty
+      Just (x, xs) -> Just (x, rebalance $ Deque xs r)
 popr :: Deque a -> Maybe (a, Deque a)
 popr (Deque l r)
   | null l && null r = Nothing
-  | otherwise = case pop r of
-    Nothing -> popr $ Deque empty (reverse l)
-    Just (x, xs) -> Just (x, rebalance $ Deque l xs)
+  | otherwise        = case pop r of
+      Nothing -> popr $ Deque empty (reverse l)
+      Just (x, xs) -> Just (x, rebalance $ Deque l xs)
 
 
 --instance Foldable Deque where

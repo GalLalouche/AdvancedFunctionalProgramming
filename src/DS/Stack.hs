@@ -3,7 +3,7 @@ module DS.Stack(
   empty, push, pop, (++), reverse, null
 ) where
 
-import Prelude hiding ((++), reverse, null)
+import Prelude hiding ((++), reverse, null, length)
 import qualified Prelude as P
 
 data Stack a = Stack {toList :: [a], length :: Int}
@@ -20,7 +20,7 @@ pop (Stack xs l) = case xs of
   [] -> Nothing
   (x : xs) -> Just (x, Stack xs (l - 1))
 
-null = P.null . toList
+null = (== 0) . length
 
 (++) :: Stack a -> Stack a -> Stack a
 (Stack s1 l1) ++ (Stack s2 l2) = Stack (s1 P.++ s2) (l1 + l2)

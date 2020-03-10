@@ -13,7 +13,7 @@ length [] = 0
 length xs = 1 + length (tail xs)
 
 null :: [a] -> Bool -- or isEmpty in other languages
-null = (== 0) . length
+null [] = True
 
 take :: Int -> [a] -> [a]
 take 0 _        = []
@@ -26,7 +26,9 @@ drop _ []       = []
 drop n (_ : xs) = drop (n - 1) xs
 filter :: (a -> Bool) -> [a] -> [a]
 filter _ []       = []
-filter p (x : xs) = if p x then x : filter p xs else filter p xs
+filter p (x : xs) = 
+  let rest = filter p xs 
+  in if p x then x : rest else rest
 
 map :: (a -> b) -> [a] -> [b]
 map _ []       = []
