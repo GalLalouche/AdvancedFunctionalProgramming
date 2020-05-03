@@ -5,13 +5,18 @@ license:             MIT
 author:              "Gal Lalouche"
 
 dependencies:
+- async
 - base >= 4.7 && < 5
+- boxes
 - containers
 - directory
 - mtl
 - QuickCheck
+- pretty-tree
 - text
 - time
+- threepenny-gui
+- vector
 
 library:
   source-dirs: src

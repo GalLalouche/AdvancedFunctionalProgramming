@@ -135,4 +135,3 @@ instance Randomable a => Randomable (Tree a) where
     isEmpty <- gen
     if isEmpty then return EmptyTree
                else Tree <$> gen <*> gen <*> gen
-

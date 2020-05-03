@@ -186,3 +186,11 @@ instance MonadTrans (StateT w) where
 --  x <- ask :: (ReaderT Int IO Int)
 --  y <- lift $ Char.digitToInt <$> getChar :: (ReaderT Int IO Int)
 --  return $ x + y
+
+class Monad m => MonadIO m where
+  liftIO :: IO a -> m a
+
+instance MonadIO IO where  
+  liftIO = id
+instance MonadIO m => MonadIO (ReaderT r m) where
+  liftIO = lift . liftIO

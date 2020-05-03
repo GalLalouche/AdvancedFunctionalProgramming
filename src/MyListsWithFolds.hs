@@ -1,7 +1,7 @@
-module MyLists where
+module MyListsWithFolds where
 
 import           Data.Composition ((.:))
-import           Prelude          (Bool (..), Eq (..), Int (..), Num (..), (.), flip)
+import           Prelude          (Bool (..), Eq (..), Int (..), Num (..), (.), flip, Maybe(..), const, (++))
 
 head :: [a] -> a
 head (x : _) = x
@@ -25,6 +25,10 @@ length = foldr (\_ s -> s + 1) 0
 filter p = foldr (\ x xs -> if p x then x : xs else xs) []
 map f = foldr (\ x xs -> f x : xs) []
 reverse = foldl (flip (:)) []
+concat = foldr (++) []
+headOpt :: [a] -> Maybe a
+headOpt = foldr (const . Just) Nothing
+
 --take :: Int -> [a] -> [a]
 --take 0 _        = []
 --take _ []       = []

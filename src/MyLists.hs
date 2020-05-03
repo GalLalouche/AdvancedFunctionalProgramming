@@ -50,3 +50,4 @@ reverseLinear :: [a] -> [a] -- manual tail recursion
 reverseLinear xs = go xs [] where
   go [] xs       = xs
   go (x : xs) ys = go xs (x : ys)
+

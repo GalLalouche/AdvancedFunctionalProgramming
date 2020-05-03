@@ -40,9 +40,11 @@ writeFile fp contents = WriteFile fp contents (EmptyProgram ())
 -- etc.
 
 anotherProgram :: IOProgram String
-anotherProgram = undefined
+anotherProgram = return "whatever"
 program :: IOProgram ()
 program = do
+  writeFile "file1" "foo"
+  writeFile "file2" "bar"
   file1 <- readFile "file1"
   file2 <- readFile "file2"
   tempFile <- tempFile $ file1 ++ file2

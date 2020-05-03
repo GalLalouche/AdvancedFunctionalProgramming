@@ -7,6 +7,7 @@ module MyRealFree where
 import           Control.Applicative (liftA2)
 import           Control.Monad       ((>=>))
 import           Control.Monad.State
+import           Control.Monad.Writer
 import           Data.Composition
 import           Data.Foldable       (traverse_)
 import           Data.Function       ((&))
@@ -43,7 +44,7 @@ listsToMaybesGood f as bs = (f as, f bs) -- Yey!
 
 interpret :: Monad m => (f ~> m) -> Free f a -> m a
 interpret _ (Return a) = return a
-interpret f (Join fa)  = f fa >>= foldFree f
+interpret f (Join fa)  = f fa >>= interpret f
 foldFree :: Monad m => (f ~> m) -> (Free f ~> m)
 foldFree _ (Return a) = return a
 foldFree f (Join fa)  = f fa >>= foldFree f
@@ -113,7 +114,3 @@ stateInterpreter (TempFile contents next) = do
 hoistFree :: Functor g => (f ~> g) -> Free f a -> Free g a
 hoistFree _ (Return a) = Return a
 hoistFree f (Join fa) = Join $ hoistFree f <$> f fa
-
-stateToIO :: State Files ~> IO
-stateToIO = do
-  files <- 

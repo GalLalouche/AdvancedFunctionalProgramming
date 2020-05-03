@@ -1,1 +1,150 @@
-main = print "Hello World!"
+----{-# LANGUAGE AllowAmbiguousTypes #-}
+--{-# LANGUAGE ApplicativeDo     #-}
+--{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns #-}
+--
+--module Main where
+import Control.Monad (guard)
+import Data.Foldable (asum)
+import Data.Function ((&))
+import Data.Maybe (fromJust)
+import Data.Foldable (toList)
+import DS.BankerDeque as BD
+import Optics.FunctorLenses
+import DS.Stack
+import Prelude as P
+----
+----import Data.Function ((&))
+----import           Control.Monad                 (forM_)
+----import           Data.Functor                  (void, ($>))
+----import           Data.Vector                   (Vector)
+----import qualified Data.Vector                   as V
+----
+----import qualified Graphics.UI.Threepenny        as UI
+----import           Graphics.UI.Threepenny.Canvas (Canvas)
+----import qualified Graphics.UI.Threepenny.Canvas as Canvas
+----import           Graphics.UI.Threepenny.Core   (Event, UI, Window, askWindow,
+----                                                defaultConfig, getBody, liftIO,
+----                                                mkElement, register, runUI, set,
+----                                                startGUI, title, ( #+ ), ( #. ))
+----
+----
+----import           Frp.Game
+----
+----
+----roots a b c = let
+----    p_nom = -b + underSqrt
+----    n_nom = - b - underSqrt
+----    denom = 2 * a
+----  in (p_nom / denom, n_nom / denom) where
+----    underSqrt = let fourAc = 4 * a * c in
+----                  let bSquared = b * b in bSquared - fourAc
+----
+----main = startGUI defaultConfig setup
+----
+----setup :: Window -> UI ()
+----setup w = void $ do
+----  return w & set title "A Reactive game of life (clone)"
+----  canvas <- mkElement "canvas" #. "reactive-life-clone"
+----  timer <- UI.timer & set UI.interval 100
+----  let updates = UI.tick timer $> step
+----  let init = fromList 100
+----        [
+----          (12,10), (17,10),
+----          (10,11), (11,11), (13,11), (14,11), (15,11), (16,11),(18,11),(19,11),
+----          (12,12), (17,12) ]
+----  grids <- UI.accumE init updates
+----  registerUpdate canvas grids
+----  timer & UI.start
+----  getBody w #+ [return canvas]
+------  let grids = take 10 $ iterate step init
+------  forM_ grids (\ g -> putStrLn (toString g) *> putStrLn "")
+----
+----pt :: (Int, Int) -> Canvas.Point
+----pt (x, y) = (fromIntegral x, fromIntegral y)
+----drawGrid :: Grid -> Canvas -> UI ()
+----drawGrid grid canvas = do
+----  let width = V.length grid
+----  let scale = 10
+----  let cell = fromIntegral scale
+----  Canvas.clearCanvas canvas
+----  return canvas & set Canvas.fillStyle (Canvas.htmlColor "black")
+----                & set UI.width (width * scale)
+----                & set UI.height (width * scale)
+----  forM_ (livePoints grid) $ \ (x, y) -> Canvas.fillRect (pt (x * scale, y * scale)) cell cell canvas
+----
+----registerUpdate :: Canvas -> Event Grid -> UI ()
+----registerUpdate canvas grids = do
+----  window <- askWindow
+----  liftIO . void . register grids $ \grid -> runUI window $ drawGrid grid canvas
+----
+--
+--aux :: [Deque Int -> IO (Deque Int)] -> IO ()
+--aux = let e = Deque empty empty in go e where
+--  go _ [] = return ()
+--  go e (f : fs) = do
+--    next <- f e
+--    print next
+--    go next fs
+--
+--myPopR :: Deque Int -> IO (Deque Int)
+--myPopR xs = do
+--  let (r, next) = fromJust $ popr xs
+--  print r
+--  return next
+--
+--leetSpeak :: String -> String
+--leetSpeak = map $ \x -> case x of
+--  'e' -> '3'
+--myPopL :: Deque Int -> IO (Deque Int)
+--myPopL xs = do
+--  let (r, next) = fromJust $ popl xs
+--  print r
+--  return next
+--
+--pairPair :: forall a. a -> ((a, a), (a, a))
+--pairPair x = (p, p) where
+--  p :: (a, a)
+--  p = (x, x)
+--
+--replicate :: forall a. a -> Int -> [a]
+--replicate x = go where
+--  go :: Int -> [a]
+--  go 0 = []
+--  go n = x : go (n - 1)
+--
+--go xs = do
+--  x <- xs
+--  guard $ x > 5
+--  return x
+--isPrime :: Int -> Bool
+--isPrime x = all (\y -> x `mod` y /= 0) [2 .. x - 1]
+--
+--twoPrimeDivisors :: Int -> Maybe (Int, Int)
+--twoPrimeDivisors x = if x < 1000 then Nothing else asum $ map check [2 .. x - 1] where
+--  check y = let
+--      d = x `div` y
+--    in if d /= x && x `mod` y == 0 && isPrime y && isPrime d then Just (y, d) else Nothing
+main = do
+  print $ genView nameTraversal (Person "foobar")
+--  print $ go $ Just 10
+--  print $ go $ Just 0
+--  print $ asum $ map (\x -> if x > 100 && isPrime x then Just x else Nothing) [1..]
+--  print $ asum $ map twoPrimeDivisors [1..]
+--  let emptyDq = Deque empty empty :: Deque Int
+--  print $ splitReversed 3 ((empty :: Stack Int) & push 1 & push 2 & push 3 & push 4 & push 5 & push 6 & push 7)
+--  let leftPushes = (return .) <$> [pushl 1, pushl 2, pushl 3, pushl 4, pushl 5, pushl 6, pushl 7, pushl 8]
+--  let rightPushes = (return .) <$> [pushr 1, pushr 2, pushr 3, pushr 4, pushr 5, pushr 6, pushr 7, pushr 8]
+--  aux leftPushes
+--  aux $ leftPushes P.++ concat (replicate 4 [myPopL, myPopR])
+--  aux $ leftPushes P.++ concat (replicate 4 [myPopR, myPopL])
+--  aux $ rightPushes P.++ concat (replicate 4 [myPopL, myPopR])
+--  aux $ rightPushes P.++ concat (replicate 4 [myPopR, myPopL])
+--  aux rightPushes
+--  let prepended = 1 |> 2 |> 3 |> 4 |> 5 |> 6 |> DQ.empty
+--  print prepended
+--  print $ toList prepended
+--  let appended = DQ.empty <| 1 <| 2 <| 3 <| 4 <| 5 <| 6
+--  print appended
+--  print $ toList appended

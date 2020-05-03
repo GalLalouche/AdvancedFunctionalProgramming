@@ -25,7 +25,7 @@ mkSourcePos = SourcePos 0 0
 type Parser = StateT SourcePos ParseResult
 
 raiseError :: String -> Parser a
-raiseError s = do { pos <- get; lift $ Left $ (s, pos) }
+raiseError s = do { pos <- get; lift $ Left (s, pos) }
 
 anyChar :: Parser Char
 anyChar = do
@@ -46,15 +46,15 @@ digit = do
 parseTwoDigits = do
   x <- digit
   y <- digit
-  return $ [x, y]
+  return [x, y]
 
 digitsToInteger :: Foldable f => f Int -> Integer
-digitsToInteger = foldl (\a b -> (a * 10) + (toInteger b)) 0
+digitsToInteger = foldl (\a b -> (a * 10) + toInteger b) 0
 parseNumberSlow :: Parser Integer
 parseNumberSlow =
     digitsToInteger <$> liftA2 (:) digit parseDigits where
   parseDigits :: Parser [Int]
-  parseDigits = (liftA2 (:) digit parseDigits) <|> pure []
+  parseDigits = liftA2 (:) digit parseDigits <|> pure []
 
 
 -- Runs parser p2 if p1 failed *without consuming any input*
@@ -110,9 +110,7 @@ between :: Parser open -> Parser close -> Parser a -> Parser a
 between open close a = open *> a <* close
 
 keyword :: String -> Parser String
-keyword []      = return []
-keyword (h : s) = liftA2 (:) (char h) (keyword s)
-
+keyword = foldr (liftA2 (:) . char) (pure [])
 string :: String -> Parser String
 string kw = aux [] kw where
   aux current [] = return kw
@@ -133,15 +131,23 @@ parseNot :: Char -> Parser Char
 parseNot c = do
   x <- anyChar
   if x == c then raiseError $ "Did not expect " ++ show c else return x
-parseUntilChar :: Char -> Parser [Char]
+parseUntilChar :: Char -> Parser String
 parseUntilChar = many . parseNot
-parseString :: Parser String
-parseString = char '"' *> parseUntilChar '"' <* char '"'
 
-parseAny :: [Parser a] -> Parser a
-parseAny []       = error "parseAny received an empty list! Boo on you!"
-parseAny [p]      = p
-parseAny (h : hs) = h <|> parseAny hs
+noneOf :: [Char] -> Parser Char
+noneOf cs = try $ do
+  c <- anyChar
+  let msg = show c ++ " was in " ++ show cs
+  if c `elem` cs then raiseError msg else return c
+
+anyString :: Parser String
+anyString = let
+    q = char '"'
+    p = noneOf "\"\\" <|> (string "\\\"" $> '"')
+  in between q q (many p)
+
+choice :: [Parser a] -> Parser a
+choice = foldr (<|>) (raiseError "No match found")
 
 spaces :: Parser ()
 spaces = skipMany $ oneOf " \t\r\n"
@@ -153,13 +159,13 @@ number :: Parser Integer
 number = digitsToInteger <$> many1 digit
 
 sepByChar :: Parser a -> Char -> Parser [a]
-sepByChar p sep = (liftA2 (:) p (many (char sep *> p))) <|> return []
+sepByChar p sep = liftA2 (:) p (many (char sep *> p)) <|> return []
 
 data JsValue = JsObject (Map String JsValue) | JsInt Integer | JsString String | JsArray [JsValue] deriving (Show)
-parseJsString = JsString <$> parseString
+parseJsString = JsString <$> anyString
 parseJsInt = JsInt <$> number
 parseJsArray = JsArray <$> (char '[' *> sepByChar (spaces *> parseJsValue <* spaces) ',' <* char ']')
 parseJsObject = JsObject . fromList <$> (char '{' *> spaces *> sepByChar keyValuePair ',' <* spaces <* char '}') where
   keyValuePair :: Parser (String, JsValue)
-  keyValuePair = liftA2 (,) (eatWhiteSpace *> parseString) (eatWhiteSpace *> char ':' *> eatWhiteSpace *> parseJsValue <* eatWhiteSpace)
-parseJsValue = parseAny [parseJsString, parseJsInt, parseJsObject, parseJsArray]
+  keyValuePair = liftA2 (,) (spaces *> anyString) (spaces *> char ':' *> spaces *> parseJsValue <* spaces)
+parseJsValue = choice [parseJsString, parseJsInt, parseJsObject, parseJsArray]
