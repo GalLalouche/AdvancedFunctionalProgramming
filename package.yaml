@@ -10,8 +10,11 @@ dependencies:
 - directory
 - mtl
 - QuickCheck
+- parsec
+- template-haskell
 - text
 - time
+- vector
 
 library:
   source-dirs: src
@@ -27,24 +30,24 @@ executables:
     dependencies:
     - afp
 
-tests:
-  afp-test:
-    main:                Driver.hs
-    source-dirs:         test
-    ghc-options:
-      - -threaded
-      - -rtsopts
-      - -with-rtsopts=-N
-      - -Wall
-      - -Wno-missing-signatures
-      - -Wno-name-shadowing
-      - -Wno-orphans
-      - -Wno-type-defaults
-    dependencies:
-      - afp
-      - HUnit
-      - QuickCheck
-      - tasty
-      - tasty-hunit
-      - tasty-hunit-adapter
-      - tasty-discover >= 4.2.1
+#tests:
+#  afp-test:
+#    main:                Driver.hs
+#    source-dirs:         test
+#    ghc-options:
+#      - -threaded
+#      - -rtsopts
+#      - -with-rtsopts=-N
+#      - -Wall
+#      - -Wno-missing-signatures
+#      - -Wno-name-shadowing
+#      - -Wno-orphans
+#      - -Wno-type-defaults
+#    dependencies:
+#      - afp
+#      - HUnit
+#      - QuickCheck
+#      - tasty
+#      - tasty-hunit
+#      - tasty-hunit-adapter
+#      - tasty-discover >= 4.2.1

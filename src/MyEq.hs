@@ -5,6 +5,7 @@
 module MyEq where
 
 import           Data.Char    (ord)
+import Data.Composition ((.:))
 import           Prelude      hiding (Eq, (!=), (==))
 
 import           GHC.Generics ((:*:) (..), (:+:) (..), Generic (..), U1 (..), M1(..), K1(..))
@@ -15,7 +16,7 @@ class Eq a where
   (==) x y = geq (from x) (from y)
 
 (!=) :: Eq a => a -> a -> Bool
-x != y = not (x == y)
+(!=) = not .: (==)
 
 
 instance Eq Int where

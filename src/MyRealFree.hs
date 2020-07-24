@@ -18,6 +18,8 @@ import qualified System.Directory    as D
 
 data Free f a = Return a | Join (f (Free f a))
 
+class Foo a where
+  foo, bar :: a -> a
 instance (Functor f) => Functor (Free f) where
   fmap f (Return a) = Return $ f a
   fmap f (Join fa)  = Join $ fmap f <$> fa
@@ -31,15 +33,16 @@ instance (Functor f) => Monad (Free f) where
 
 infixr 0 ~>
 type f ~> g = forall x. f x -> g x
-listToMaybe :: [] ~> Maybe
+listToMaybe :: forall a. [a] -> Maybe a
 listToMaybe []       = Nothing
 listToMaybe (x : xs) = Just x
 listsToMaybesBad ::
     ([a] -> Maybe a) -> [a] -> [b] -> (Maybe a, Maybe b)
 listsToMaybesBad = undefined
-listsToMaybesGood ::
-    ([] ~> Maybe) -> [a] -> [b] -> (Maybe a, Maybe b)
+listsToMaybesGood :: forall a b.
+    [] ~> Maybe -> [a] -> [b] -> (Maybe a, Maybe b)
 listsToMaybesGood f as bs = (f as, f bs) -- Yey!
+x = listsToMaybesGood listToMaybe [1, 2, 3] "foo"
 
 interpret :: Monad m => (f ~> m) -> Free f a -> m a
 interpret _ (Return a) = return a
@@ -112,8 +115,4 @@ stateInterpreter (TempFile contents next) = do
 
 hoistFree :: Functor g => (f ~> g) -> Free f a -> Free g a
 hoistFree _ (Return a) = Return a
-hoistFree f (Join fa) = Join $ hoistFree f <$> f fa
-
-stateToIO :: State Files ~> IO
-stateToIO = do
-  files <- 
+hoistFree f (Join fa)  = Join $ hoistFree f <$> f fa

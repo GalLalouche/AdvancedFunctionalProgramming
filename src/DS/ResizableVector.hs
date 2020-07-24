@@ -1,4 +1,5 @@
 {-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE RecordWildCards #-}
 
 module DS.ResizableVector where
 
@@ -34,7 +35,7 @@ pushr e v = if isFull v
            , vs = V.fromList [v]} & pushr e
   else case v of
     Leafs {v} -> Leafs $ V.snoc v e
-    Node {h, l, vs} -> let
+    Node {..} -> let
       createNewBranch = V.null vs || isFull (V.last vs)
       nextChild = if h == 2
         then empty
@@ -69,17 +70,19 @@ lookup n v = if n < 0 || n >= length v
     Node {h, vs} -> let
       TranslatedIndex {updatedN, branch} = translateIndex n v
       in lookup updatedN branch
-
+      
+(!!) :: ResizableVector a -> Int -> a
+(!!) v i = case lookup i v of Just x -> x
 update :: Int -> a -> ResizableVector a -> ResizableVector a
 update n e v = if n < 0 || n >= length v
   then v -- Could also raise an error, or return Nothing
   else case v of
     Leafs {v} -> Leafs $ v V.// [(n, e)]
-    Node {h, l, vs} -> let
+    Node {..} -> let
       TranslatedIndex {updatedN, branch, index} =
         translateIndex n v
       updatedBranch = update updatedN e branch
-      in Node {h, l, vs = vs V.// [(index, updatedBranch)]}
+      in Node {vs = vs V.// [(index, updatedBranch)], ..}
 
 fromList :: [a] -> ResizableVector a
 fromList = foldr pushr empty . reverse

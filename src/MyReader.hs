@@ -8,19 +8,13 @@ import Data.Composition
 import Control.Applicative
 
 
-class Monad m => Reader r m where
-  local :: (r -> r) -> m a -> m a
-  ask :: m r
-  ask = reader id
-  reader :: (r -> a) -> m a
-  reader = flip fmap ask
-  {-# MINIMAL (ask | reader), local #-}
-
-instance Reader r ((->) r) where
-  ask :: (->) r r
-  ask = id
-  local = flip (.)
-  reader = id
+type Reader = (->)
+ask :: Reader r r
+ask = id
+local :: (r -> r) -> Reader r a -> Reader r a
+local = flip (.)
+reader :: (r -> a) -> Reader r a
+reader = flip fmap ask
 
 --ask :: (r -> r)
 --ask = id
